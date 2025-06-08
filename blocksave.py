@@ -120,54 +120,30 @@ def run_server():
         server.server_close()
 
 
-def copy_from_android():
+def copy_from_android(world):
     """Copy world files from Android device using ADB"""
     try:
         # Check if ADB is available
         subprocess.run(["adb", "version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
-        # Get list of worlds from Android device
-        result = subprocess.run(
-            ["adb", "shell", f"ls {ANDROID_WORLDS_PATH}"],
-            check=True, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        
-        worlds = [w.strip() for w in result.stdout.split('\n') if w.strip()]
-        
-        if not worlds:
-            print("No worlds found on Android device")
-            return
-        
-        print(f"Found {len(worlds)} worlds on Android device:")
-        for i, world in enumerate(worlds):
-            print(f"{i+1}. {world}")
         
         # Create local directory if it doesn't exist
         os.makedirs(DATA_PATH, exist_ok=True)
         
         # Copy each world
-        for world in worlds:
-            world_path = f"{ANDROID_WORLDS_PATH}{world}"
-            local_path = f"{DATA_PATH}/{world}"
-            
-            print(f"Copying world '{world}' from Android device...")
-            
-            # Create local world directory
-            os.makedirs(local_path, exist_ok=True)
-            
-            # Pull map.sqlite file
-            map_file = f"{world_path}/map.sqlite"
-            subprocess.run(
-                ["adb", "pull", map_file, f"{local_path}/map.sqlite"],
-                check=True
-            )
-            
-            print(f"World '{world}' copied successfully to {local_path}")
+        world_path = f"{ANDROID_WORLDS_PATH}{world}/"
         
-        print("All worlds copied successfully")
+        print(f"Copying world '{world}' from Android device...")
+        
+        # Create local world directory
+        #os.makedirs(local_path, exist_ok=True)
+        
+        # Pull all files
+        subprocess.run(
+            ["adb", "pull", world_path, DATA_PATH],
+            check=True
+        )
+        
         
     except subprocess.CalledProcessError as e:
         print(f"Error executing ADB command: {e}")
@@ -175,8 +151,9 @@ def copy_from_android():
     except Exception as e:
         print(f"Error copying worlds: {e}")
 
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "copy":
-        copy_from_android()
+        copy_from_android('kok')
     else:
         run_server()
