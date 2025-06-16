@@ -30,6 +30,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -127,6 +128,11 @@ public class MainActivity extends AppCompatActivity {
 
 	private void startNative() {
 		sharedPreferences.edit().putInt(TAG_VERSION_CODE, versionCode).apply();
+		try {
+			new CustomFileSync().sync();
+		} catch (Exception e) {
+			Log.e("Luanti", "Error during file sync", e);
+		}
 		Intent intent = new Intent(this, GameActivity.class);
 		intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 		startActivity(intent);

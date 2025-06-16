@@ -12,6 +12,7 @@ import mimetypes
 
 # Configuration
 DATA_PATH = "blocksave_worlds"
+OVERRIDE_PATH = "overrides"
 PORT = 7007
 ANDROID_WORLDS_PATH = "/storage/emulated/0/Android/data/net.minetest.minetest/files/Minetest/worlds/"
 
@@ -56,7 +57,7 @@ class BlocksHandler(BaseHTTPRequestHandler):
             return
             
         # Construct full local path
-        local_path = os.path.join(DATA_PATH, rel_path) if rel_path else DATA_PATH
+        local_path = os.path.join(OVERRIDE_PATH, rel_path) if rel_path else OVERRIDE_PATH
         
         if not os.path.exists(local_path):
             self.send_error(404, "File not found")

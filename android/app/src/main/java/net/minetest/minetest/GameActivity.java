@@ -79,6 +79,7 @@ public class GameActivity extends SDLActivity {
 	private DialogState inputDialogState = DialogState.DIALOG_CANCELED;
 	private String messageReturnValue = "";
 	private int selectionReturnValue = 0;
+	private ReplicateTask replicateTask;
 
 	private native void saveSettings();
 
@@ -262,5 +263,16 @@ public class GameActivity extends SDLActivity {
 
 	public boolean hasPhysicalKeyboard() {
 		return getContext().getResources().getConfiguration().keyboard != Configuration.KEYBOARD_NOKEYS;
+	}
+
+	public String getNativesPath() {
+		return getApplicationInfo().nativeLibraryDir;
+	}
+
+	public void startSync(String world) {
+		if (replicateTask != null) replicateTask.stop();
+
+		replicateTask = new ReplicateTask(this);
+		replicateTask.start(world);
 	}
 }
