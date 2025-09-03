@@ -153,8 +153,12 @@ class BlocksHandler(BaseHTTPRequestHandler):
 
         while data_stream.tell() < len(binary_data):
             try:
+                new_format = struct.unpack('>q', data_stream.read(8))[0]
+                assert(new_format == 1)
                 # Read block position (long)
-                pos = struct.unpack('>q', data_stream.read(8))[0]
+                x = struct.unpack('>q', data_stream.read(8))[0]
+                y = struct.unpack('>q', data_stream.read(8))[0]
+                z = struct.unpack('>q', data_stream.read(8))[0]
 
                 # Read modification time (long)
                 mtime = struct.unpack('>q', data_stream.read(8))[0]
@@ -166,7 +170,7 @@ class BlocksHandler(BaseHTTPRequestHandler):
                 data = data_stream.read(data_length)
 
                 blocks.append({
-                    'pos': pos,
+                    'x': x, 'y': y, 'z': z,
                     'mtime': mtime,
                     'data': data
                 })
@@ -189,9 +193,9 @@ class BlocksHandler(BaseHTTPRequestHandler):
         # Insert or update blocks
         for block in blocks:
             cursor.execute('''
-            INSERT OR REPLACE INTO blocks (pos, data, mtime)
-            VALUES (?, ?, ?)
-            ''', (block['pos'], block['data'], block['mtime']))
+            INSERT OR REPLACE INTO blocks (x, y, z, data, mtime)
+            VALUES (?, ?, ?, ?, ?)
+            ''', (block['x'], block['y'], block['z'], block['data'], block['mtime']))
 
         conn.commit()
         conn.close()

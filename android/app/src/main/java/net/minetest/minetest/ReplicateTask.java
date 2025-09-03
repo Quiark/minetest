@@ -4,14 +4,11 @@ package net.minetest.minetest;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.Looper;
 import android.util.Log;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -77,18 +74,30 @@ public class ReplicateTask {
 		}
 
 		long lastPos = mapDb.getDonePos();
+		long[] lastCoord = mapDb.getDoneXYZ();
 		long lastMtime = mapDb.getDoneMtime();
 		List<Block> blocks = new ArrayList<>();
 		SQLiteDatabase db = mapDb.getReadableDatabase();
 		try (
-			Cursor c = db.rawQuery("SELECT pos, data, mtime FROM blocks WHERE (mtime > ?1) OR ((mtime = ?1) AND (pos > ?2)) ORDER BY mtime ASC, pos ASC LIMIT 100;",
-			new String[]{String.valueOf(lastMtime), String.valueOf(lastPos)})
+			Cursor c = getNewBlocks(db, lastMtime, lastPos, lastCoord)
 		) {
 			while (c.moveToNext()) {
 				Block b = new Block();
-				b.pos = c.getLong(0);
-				b.data = c.getBlob(1);
-				b.mtime = c.getLong(2);
+				if (mapDb.isNewFormat) {
+					// x, y, z, data, mtime
+					b.x = c.getLong(0);
+					b.y = c.getLong(1);
+					b.z = c.getLong(2);
+					b.data = c.getBlob(3);
+					b.mtime = c.getLong(4);
+					b.newFormat = true;
+				} else {
+					// pos, data, mtime
+					b.pos = c.getLong(0);
+					b.data = c.getBlob(1);
+					b.mtime = c.getLong(2);
+					b.newFormat = false;
+				}
 				blocks.add(b);
 			}
 		}
@@ -99,8 +108,39 @@ public class ReplicateTask {
 		return blocks;
 	}
 
-	String url = "http://10.0.2.2:7007/map/";
-	//String url = "http://10.0.8.73:7007/map/";
+	private Cursor getNewBlocks(SQLiteDatabase db, long lastMtime, long lastPos, long[] lastCoord) {
+		if (mapDb.isNewFormat) {
+			assert(lastCoord != null && lastCoord.length == 3);
+			long lx =  lastCoord[0];
+			long ly =  lastCoord[1];
+			long lz =  lastCoord[2];
+
+			// New-format: lexicographic ordering by (mtime, x, y, z)
+			// Start strictly after (lastMtime, lastCoord)
+			String sql =
+				"SELECT x, y, z, data, mtime " +
+				"FROM blocks " +
+				"WHERE (mtime > ?1) OR " +
+				"      (mtime = ?1 AND (" +
+				"          (x > ?2) OR " +
+				"          (x = ?2 AND (y > ?3 OR (y = ?3 AND z > ?4)))" +
+				"      )) " +
+				"ORDER BY mtime ASC, x ASC, y ASC, z ASC " +
+				"LIMIT 100;";
+			return db.rawQuery(sql, new String[] {
+				String.valueOf(lastMtime),
+				String.valueOf(lx),
+				String.valueOf(ly),
+				String.valueOf(lz)
+			});
+		} else {
+			return db.rawQuery("SELECT pos, data, mtime FROM blocks WHERE (mtime > ?1) OR ((mtime = ?1) AND (pos > ?2)) ORDER BY mtime ASC, pos ASC LIMIT 100;",
+				new String[]{String.valueOf(lastMtime), String.valueOf(lastPos)});
+
+		}
+	}
+
+	String url = HOST + "/map/";
 
 	public void sendBlocks(List<Block> blocks) {
 		if (blocks == null || blocks.isEmpty()) {
@@ -114,7 +154,15 @@ public class ReplicateTask {
 			DataOutputStream dataStream = new DataOutputStream(byteStream);
 
 			for (Block block : blocks) {
-				dataStream.writeLong(block.pos); // Write block position
+				dataStream.writeLong(block.newFormat ? 1 : 0); // Write format flag
+				if (block.newFormat) {
+					dataStream.writeLong(block.x); // Write x coordinate
+					dataStream.writeLong(block.y); // Write y coordinate
+					dataStream.writeLong(block.z); // Write z coordinate
+				} else {
+					// Old format does not have x,y,z
+					dataStream.writeLong(block.pos); // Write block position
+				}
 				dataStream.writeLong(block.mtime); // Write block modification time
 				dataStream.writeLong(block.data.length); // Write block data length
 				dataStream.write(block.data); // Write block data
@@ -161,7 +209,34 @@ public class ReplicateTask {
 	private void storeProgress(List<Block> blocks) {
 		if (blocks == null || blocks.isEmpty()) return;
 
-		// Find the block with the largest pos and mtime (lexicographic comparison)
+		if (mapDb != null && mapDb.isNewFormat) {
+			// New format: pick max by (mtime, x, y, z)
+			Block maxBlock = null;
+			for (Block b : blocks) {
+				if (!b.newFormat) continue; // sanity
+				if (maxBlock == null ||
+					(b.mtime > maxBlock.mtime) ||
+					(b.mtime == maxBlock.mtime && (
+						b.x > maxBlock.x ||
+						(b.x == maxBlock.x && (
+							b.y > maxBlock.y ||
+							(b.y == maxBlock.y && b.z > maxBlock.z)
+						))
+					))
+				) {
+					maxBlock = b;
+				}
+			}
+			if (maxBlock != null) {
+				Log.d("ReplicateTask", "Storing progress (new): mtime=" + maxBlock.mtime +
+						", x=" + maxBlock.x + ", y=" + maxBlock.y + ", z=" + maxBlock.z);
+				// Persist progress for new-format worlds
+				mapDb.updateDoneXYZ(maxBlock.mtime, maxBlock.x, maxBlock.y, maxBlock.z);
+			}
+			return;
+		}
+
+		// Old format: pick max by (mtime, pos)
 		Block maxBlock = null;
 		for (Block block : blocks) {
 			if (maxBlock == null ||
@@ -169,18 +244,21 @@ public class ReplicateTask {
 				maxBlock = block;
 			}
 		}
-
 		if (maxBlock != null) {
-			Log.d("ReplicateTask", "Storing progress: mtime=" + maxBlock.mtime + ", pos=" + maxBlock.pos);
+			Log.d("ReplicateTask", "Storing progress (old): mtime=" + maxBlock.mtime + ", pos=" + maxBlock.pos);
 			mapDb.updateDoneSeq(maxBlock.mtime, maxBlock.pos);
 		}
 	}
 
 	// Define a placeholder Block class (replace with your actual implementation)
 	public static class Block {
+		public boolean newFormat;
 		public long pos;
 		public byte[] data;
 		public long mtime;
+		public long x;
+		public long y;
+		public long z;
 	}
 
 }

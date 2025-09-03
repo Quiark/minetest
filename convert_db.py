@@ -27,7 +27,8 @@ def ensure_columns(cur: sqlite3.Cursor, schema: str, table: str, required: Tuple
     cols = {row[1] for row in cur.fetchall()}  # row[1] = name
     missing = [c for c in required if c not in cols]
     if missing:
-        die(f"Table '{table}' in {schema} is missing required columns: {', '.join(missing)}")
+        print(f"Table '{table}' in {schema} is missing required columns: {', '.join(missing)}")
+        cur.execute("ALTER TABLE src.blocks ADD COLUMN mtime INTEGER;")
 
 def get_integer_as_block(i: int) -> Tuple[int, int, int]:
     """Convert integer position to x, y, z coordinates.
@@ -52,16 +53,14 @@ def get_integer_as_block(i: int) -> Tuple[int, int, int]:
     return (x, y, z)
 
 def main():
-    parser = argparse.ArgumentParser(description="Copy table 'blocks' (pos, mtime, data) from one SQLite DB to a new DB, adding an offset to pos.")
+    parser = argparse.ArgumentParser(description="Copy table 'blocks' (pos, mtime, data) from one SQLite DB to a new DB ")
     parser.add_argument("source_db", help="Path to source SQLite database")
-    parser.add_argument("dest_db", help="Path to destination SQLite database (created if missing)")
     parser.add_argument("--table", default="blocks", help="Table name to copy (default: blocks)")
-    parser.add_argument("--offset", type=int, default=101, help="Amount to add to 'pos' (default: 101)")
     parser.add_argument("--overwrite", action="store_true", help="Drop destination table if it already exists")
     args = parser.parse_args()
 
-    src_path = os.path.abspath(args.source_db)
-    dst_path = os.path.abspath(args.dest_db)
+    src_path = f'/Users/roman/Library/Application Support/minetest/worlds/{args.source_db}/map.sqlite'
+    dst_path = f'/Users/roman/Library/Application Support/minetest/worlds/{args.source_db}/map2.sqlite'
     table = args.table
 
     if not os.path.exists(src_path):
@@ -120,9 +119,7 @@ def main():
                 # Process each row in the batch
                 batch_data = []
                 for pos, mtime, data in batch:
-                    # Apply offset to pos and convert to x, y, z coordinates
-                    new_pos = pos + args.offset
-                    x, y, z = get_integer_as_block(new_pos)
+                    x, y, z = get_integer_as_block(pos)
                     batch_data.append((x, y, z, data, mtime))
                 
                 # Insert the batch
@@ -148,7 +145,7 @@ def main():
         src_count = cur.fetchone()[0]
         cur.execute(f'SELECT COUNT(*) FROM main."{table}";')
         dst_count = cur.fetchone()[0]
-        print(f"Copied {dst_count} rows into '{table}' (source had {src_count}). pos offset = {args.offset}")
+        print(f"Copied {dst_count} rows into '{table}' (source had {src_count}). ")
         print(f"Total rows processed: {total_copied}")
         print(f"Destination DB: {dst_path}")
 
