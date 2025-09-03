@@ -81,12 +81,46 @@ def main():
         cur.execute("BEGIN;")
         try:
             cur.execute(create_sql)  # creates main.table with same schema
-            rows = cur.execute(f'SELECT pos, mtime, data FROM src."{table}";')
-            # Copy rows with adjusted pos
-            cur.execute(
-                f'INSERT INTO main."{table}" (x, y, z, mtime, data) VALUES (?, ?, ?, ?, ?);',
-                (x, y, z, mtime, data)
-            )
+            
+            # Process rows in batches of 256
+            batch_size = 256
+            offset = 0
+            total_copied = 0
+            
+            while True:
+                # Fetch a batch of rows
+                cur.execute(f'SELECT pos, mtime, data FROM src."{table}" LIMIT ? OFFSET ?;', (batch_size, offset))
+                batch = cur.fetchall()
+                
+                if not batch:
+                    break  # No more rows
+                
+                # Process each row in the batch
+                batch_data = []
+                for pos, mtime, data in batch:
+                    # Apply offset to pos (assuming pos is a single integer coordinate)
+                    new_pos = pos + args.offset
+                    # For the new schema, we need to convert pos to x, y, z coordinates
+                    # This assumes pos is encoded as a single integer that needs to be decoded
+                    # You may need to adjust this based on your actual pos encoding
+                    x = new_pos  # Placeholder - adjust based on actual coordinate system
+                    y = 0        # Placeholder - adjust based on actual coordinate system  
+                    z = 0        # Placeholder - adjust based on actual coordinate system
+                    batch_data.append((x, y, z, mtime, data))
+                
+                # Insert the batch
+                cur.executemany(
+                    f'INSERT INTO main."{table}" (x, y, z, mtime, data) VALUES (?, ?, ?, ?, ?);',
+                    batch_data
+                )
+                
+                total_copied += len(batch)
+                offset += batch_size
+                
+                # Optional: print progress for large datasets
+                if total_copied % 10000 == 0:
+                    print(f"Processed {total_copied} rows...")
+            
             con.commit()
         except Exception as e:
             con.rollback()
@@ -98,6 +132,7 @@ def main():
         cur.execute(f'SELECT COUNT(*) FROM main."{table}";')
         dst_count = cur.fetchone()[0]
         print(f"Copied {dst_count} rows into '{table}' (source had {src_count}). pos offset = {args.offset}")
+        print(f"Total rows processed: {total_copied}")
         print(f"Destination DB: {dst_path}")
 
     except Exception as e:
