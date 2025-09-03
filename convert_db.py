@@ -29,6 +29,28 @@ def ensure_columns(cur: sqlite3.Cursor, schema: str, table: str, required: Tuple
     if missing:
         die(f"Table '{table}' in {schema} is missing required columns: {', '.join(missing)}")
 
+def get_integer_as_block(i: int) -> Tuple[int, int, int]:
+    """Convert integer position to x, y, z coordinates.
+    
+    Based on C++ code:
+    v3s16 MapDatabase::getIntegerAsBlock(s64 i)
+    {
+        // Offset so that all negative coordinates become non-negative
+        i = i + 0x800800800;
+        // Which is now easier to decode using simple bit masks:
+        return { (s16)( (i        & 0xFFF) - 0x800),
+                 (s16)(((i >> 12) & 0xFFF) - 0x800),
+                 (s16)(((i >> 24) & 0xFFF) - 0x800) };
+    }
+    """
+    # Offset so that all negative coordinates become non-negative
+    i = i + 0x800800800
+    # Decode using simple bit masks
+    x = (i & 0xFFF) - 0x800
+    y = ((i >> 12) & 0xFFF) - 0x800
+    z = ((i >> 24) & 0xFFF) - 0x800
+    return (x, y, z)
+
 def main():
     parser = argparse.ArgumentParser(description="Copy table 'blocks' (pos, mtime, data) from one SQLite DB to a new DB, adding an offset to pos.")
     parser.add_argument("source_db", help="Path to source SQLite database")
@@ -98,13 +120,10 @@ def main():
                 # Process each row in the batch
                 batch_data = []
                 for pos, mtime, data in batch:
-                    # For the new schema, we need to convert pos to x, y, z coordinates
-                    # This assumes pos is encoded as a single integer that needs to be decoded
-                    # You may need to adjust this based on your actual pos encoding
-                    x = new_pos  # Placeholder - adjust based on actual coordinate system
-                    y = 0        # Placeholder - adjust based on actual coordinate system  
-                    z = 0        # Placeholder - adjust based on actual coordinate system
-                    batch_data.append((x, y, z, mtime, data))
+                    # Apply offset to pos and convert to x, y, z coordinates
+                    new_pos = pos + args.offset
+                    x, y, z = get_integer_as_block(new_pos)
+                    batch_data.append((x, y, z, data, mtime))
                 
                 # Insert the batch
                 cur.executemany(
