@@ -89,7 +89,7 @@ def main():
             
             while True:
                 # Fetch a batch of rows
-                cur.execute(f'SELECT pos, mtime, data FROM src."{table}" LIMIT ? OFFSET ?;', (batch_size, offset))
+                cur.execute(f'SELECT pos, mtime, data FROM src."{table}" ORDER BY pos DESC LIMIT ? OFFSET ?;', (batch_size, offset))
                 batch = cur.fetchall()
                 
                 if not batch:
@@ -98,8 +98,6 @@ def main():
                 # Process each row in the batch
                 batch_data = []
                 for pos, mtime, data in batch:
-                    # Apply offset to pos (assuming pos is a single integer coordinate)
-                    new_pos = pos + args.offset
                     # For the new schema, we need to convert pos to x, y, z coordinates
                     # This assumes pos is encoded as a single integer that needs to be decoded
                     # You may need to adjust this based on your actual pos encoding
