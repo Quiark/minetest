@@ -297,7 +297,9 @@ bool ClientLauncher::run(GameStartData &start_data, const Settings &cmd_args)
 
 			__android_log_print(ANDROID_LOG_INFO, "litestream", "world_path %s", start_data.world_path.c_str());
 			__android_log_print(ANDROID_LOG_INFO, "litestream", "world_spec %s", start_data.world_spec.path.c_str());
-			porting::startSyncAndroid(start_data.world_spec.path);
+			if (start_data.local_server) {
+				porting::startSyncAndroid(start_data.world_spec.path);
+			}
 			the_game(
 				kill,
 				input,

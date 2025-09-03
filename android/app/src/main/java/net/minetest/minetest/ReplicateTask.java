@@ -20,6 +20,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class ReplicateTask {
+	public static final String HOST = "http://10.0.2.2:7007";
 	private final Context context;
 	private Handler handler;
 	private HandlerThread handlerThread;

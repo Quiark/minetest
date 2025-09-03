@@ -15,7 +15,7 @@ import java.util.concurrent.CountDownLatch;
 
 public class CustomFileSync {
     private static final String TAG = "CustomFileSync";
-    private static final String REMOTE_URL = "http://10.0.2.2:7007/files/"; // Change as needed
+    private static final String REMOTE_URL = ReplicateTask.HOST + "/files/"; // Change as needed
     private static final String LOCAL_ROOT = "/storage/emulated/0/Android/data/net.minetest.minetest/files/Minetest/";
 
     public void sync() throws Exception {
