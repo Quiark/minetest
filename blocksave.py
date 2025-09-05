@@ -25,9 +25,12 @@ def initialize_database(path):
         cursor = conn.cursor()
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS blocks (
-            pos INTEGER PRIMARY KEY,
+            x INTEGER,
+            y INTEGER,
+            z INTEGER,
             data BLOB,
-            mtime INTEGER
+            mtime INTEGER,
+            PRIMARY KEY (x, y, z)
         )
         ''')
         conn.commit()

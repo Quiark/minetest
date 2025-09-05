@@ -295,9 +295,9 @@ bool ClientLauncher::run(GameStartData &start_data, const Settings &cmd_args)
 			if (!m_rendering_engine->run() || *kill)
 				break;
 
-			__android_log_print(ANDROID_LOG_INFO, "litestream", "world_path %s", start_data.world_path.c_str());
-			__android_log_print(ANDROID_LOG_INFO, "litestream", "world_spec %s", start_data.world_spec.path.c_str());
-			if (start_data.local_server) {
+			__android_log_print(ANDROID_LOG_INFO, "litestream", "world_path %s address %s", start_data.world_path.c_str(), start_data.address.c_str());
+			__android_log_print(ANDROID_LOG_INFO, "litestream", "world_spec %s local_server %d", start_data.world_spec.path.c_str(), start_data.local_server);
+			if (start_data.address.empty()) {
 				porting::startSyncAndroid(start_data.world_spec.path);
 			}
 			the_game(

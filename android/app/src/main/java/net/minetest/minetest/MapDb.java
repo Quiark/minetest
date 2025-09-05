@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 import androidx.annotation.Nullable;
 
 public class MapDb extends SQLiteOpenHelper {
@@ -17,7 +18,7 @@ public class MapDb extends SQLiteOpenHelper {
 	public final boolean isNewFormat;
 
 	public MapDb(@Nullable Context context, @Nullable String name) {
-		super(context, name, null, 5);
+		super(context, name, null, 3);
 		this.getWritableDatabase().close(); //upgrade
 		this.isNewFormat = this.isNewBlocksFormat();
 	}
@@ -27,8 +28,10 @@ public class MapDb extends SQLiteOpenHelper {
 
 	@Override
 	public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-		if (oldVersion < 5) {
-			String wherePredicate = isNewFormat ? "x = new.x and y = new.y and z = new.z;" : "pos = new.pos;";
+		Log.i("MapDb", "Upgrading database from " + oldVersion + " to " + newVersion  );
+		if (oldVersion < 3) {
+			Log.i("MapDb", "adding mtime");
+			String wherePredicate = "x = new.x and y = new.y and z = new.z;";
 
 			db.execSQL("alter table blocks add mtime integer default 0;");
 			db.execSQL("create index blocks_mtime on blocks(mtime);");
@@ -43,7 +46,8 @@ public class MapDb extends SQLiteOpenHelper {
 				"update blocks set mtime = strftime('%s', 'now') where " + wherePredicate +
 				"end;");
 		}
-		if (oldVersion < 5) {
+		if (oldVersion < 3) {
+			Log.i("MapDb", "Upgrading database adding singles table");
 			db.execSQL("create table singles(name, seq);");
 			ContentValues vals = new ContentValues();
 			vals.put("name", DONE_MTIME);
@@ -64,20 +68,6 @@ public class MapDb extends SQLiteOpenHelper {
 		}
 	}
 
-	/**
-	 * Updates the sqlite_sequence DONE_SEQ to a new value.
-	 *
-	 * @param newValue The new value to set for DONE_SEQ.
-	 */
-	public void updateDoneSeq(long newtime, long newpos) {
-		SQLiteDatabase db = this.getWritableDatabase();
-		ContentValues values = new ContentValues();
-		values.put("seq", newtime);
-		db.update("singles", values, "name = ?", new String[]{DONE_MTIME});
-		values.put("seq", newpos);
-		db.update("singles", values, "name = ?", new String[]{DONE_POS});
-		db.close();
-	}
 
 	// Helper to upsert a value into 'singles' by name
 	private void upsertSingle(SQLiteDatabase db, String name, long value) {
@@ -120,18 +110,6 @@ public class MapDb extends SQLiteOpenHelper {
 	public long getDoneMtime() {
 		SQLiteDatabase db = this.getReadableDatabase();
 		Cursor cseq = db.query("singles", new String[]{"seq"}, "name = ?", new String[]{DONE_MTIME}, null, null, null);
-		long last = -1;
-		if (cseq.moveToFirst()) {
-			last = cseq.getInt(0);
-		}
-		cseq.close();
-		db.close();
-		return last;
-	}
-
-	public long getDonePos() {
-		SQLiteDatabase db = this.getReadableDatabase();
-		Cursor cseq = db.query("singles", new String[]{"seq"}, "name = ?", new String[]{DONE_POS}, null, null, null);
 		long last = -1;
 		if (cseq.moveToFirst()) {
 			last = cseq.getInt(0);
