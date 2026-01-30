@@ -14,7 +14,7 @@ pkgs.mkShell {
     pkgs.libpng
     pkgs.libGL
     pkgs.luajit
-    # pkgs.SDL2 # needs specific version
+    # pkgs.sdl3 # needs specific version
     pkgs.openal
     pkgs.curl
     pkgs.libvorbis
