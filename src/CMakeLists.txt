@@ -579,6 +579,8 @@ include_directories(SYSTEM
 	# on Android, Luanti depends on SDL2 directly
 	# on other platforms, only IrrlichtMt depends on SDL2
 	"$<$<PLATFORM_ID:Android>:${SDL2_INCLUDE_DIRS}>"
+	# on Android, iconv is required for string conversions
+	"$<$<PLATFORM_ID:Android>:${ICONV_INCLUDE_DIR}>"
 )
 
 if(USE_GETTEXT)

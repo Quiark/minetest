@@ -2,7 +2,7 @@
   description = "Development shell flake replacing shell.nix";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/1905cec8cba85fa49b09b7d0d8a9b3e2bc52d97a";
+    nixpkgs.url = "github:nixos/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
