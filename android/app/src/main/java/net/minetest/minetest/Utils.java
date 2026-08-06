@@ -1,6 +1,7 @@
 package net.minetest.minetest;
 
 import android.content.Context;
+import android.os.Environment;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -20,11 +21,7 @@ public class Utils {
 
 	@NonNull
 	public static File getUserDataDirectory(@NonNull Context context) {
-		File extDir = Objects.requireNonNull(
-			context.getExternalFilesDir(null),
-			"Cannot get external file directory"
-		);
-		return createDirs(extDir, "Minetest");
+		return createDirs(Environment.getExternalStorageDirectory(), "Mouseluanti");
 	}
 
 	@NonNull
