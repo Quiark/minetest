@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 	<string name="label">Luanti</string>
+	<string name="app_label" translatable="false">Mouse Luanti</string>
 	<string name="loading">Loading&#8230;</string>
 	<string name="notification_channel_name">General notification</string>
 	<string name="notification_channel_description">Notifications from Luanti</string>
@@ -9,4 +10,6 @@
 	<string name="game_notification_title">Luanti is running</string>
 	<string name="ime_dialog_done">Done</string>
 	<string name="no_web_browser">No web browser found</string>
+	<string name="no_storage_permission">Storage permission is required to access game data</string>
+	<string name="no_app_all_files">All-files access is required to access game data</string>
 </resources>
