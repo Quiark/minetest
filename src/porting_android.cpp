@@ -295,6 +295,30 @@ v2u32 getDisplaySize()
 	return retval;
 }
 
+std::string getNativesPathAndroid()
+{
+	jmethodID getNativesPath = jnienv->GetMethodID(activityClass,
+			"getNativesPath", "()Ljava/lang/String;");
+
+	FATAL_ERROR_IF(getNativesPath == nullptr,
+		"porting::getNativesPath unable to find Java getNativesPath method");
+
+	jobject result = jnienv->CallObjectMethod(activity, getNativesPath);
+	return readJavaString((jstring) result);
+}
+
+void startSyncAndroid(const std::string &path) {
+	jstring jPath = jnienv->NewStringUTF(path.c_str());
+	jmethodID method = jnienv->GetMethodID(activityClass,
+			"startSync", "(Ljava/lang/String;)V");
+
+	FATAL_ERROR_IF(method == nullptr,
+		"porting::startSyncAndroid unable to find Java startSync method");
+
+	jnienv->CallVoidMethod(activity, method, jPath);
+	jnienv->DeleteLocalRef(jPath);
+}
+
 std::string getLanguageAndroid()
 {
 	jmethodID getLanguage = jnienv->GetMethodID(activityClass,

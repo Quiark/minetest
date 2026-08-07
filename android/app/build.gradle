@@ -95,7 +95,7 @@ task prepareAssets() {
 			def moPath = "${assetsFolder}/locale/${poFile.parentFile.name}/LC_MESSAGES/"
 			file(moPath).mkdirs()
 			exec {
-				commandLine 'msgfmt', '-o', "${moPath}/luanti.mo", poFile
+				commandLine '/nix/store/dw6m9j7cga6vvs53c3cd3xh5q2q4k2gg-gettext-0.22.5/bin/msgfmt', '-o', "${moPath}/luanti.mo", poFile
 			}
 		}
 

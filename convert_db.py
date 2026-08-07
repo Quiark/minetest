@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import sqlite3
+import sys
+from typing import Tuple
+
+def die(msg: str, code: int = 1):
+    print(f"Error: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+def get_create_sql(cur: sqlite3.Cursor, table: str) -> str:
+    cur.execute("SELECT sql FROM src.sqlite_master WHERE type='table' AND name=?;", (table,))
+    row = cur.fetchone()
+    if not row or not row[0]:
+        die(f"Table '{table}' not found (or has no CREATE SQL) in source database.")
+    return row[0]
+
+def table_exists(cur: sqlite3.Cursor, schema: str, table: str) -> bool:
+    cur.execute(f"SELECT 1 FROM {schema}.sqlite_master WHERE type='table' AND name=?;", (table,))
+    return cur.fetchone() is not None
+
+def ensure_columns(cur: sqlite3.Cursor, schema: str, table: str, required: Tuple[str, ...]):
+    # PRAGMA schema.table_info('table')
+    tname_escaped = table.replace("'", "''")
+    cur.execute(f"PRAGMA {schema}.table_info('{tname_escaped}');")
+    cols = {row[1] for row in cur.fetchall()}  # row[1] = name
+    missing = [c for c in required if c not in cols]
+    if missing:
+        print(f"Table '{table}' in {schema} is missing required columns: {', '.join(missing)}")
+        cur.execute("ALTER TABLE src.blocks ADD COLUMN mtime INTEGER;")
+
+def get_integer_as_block(i: int) -> Tuple[int, int, int]:
+    """Convert integer position to x, y, z coordinates.
+    
+    Based on C++ code:
+    v3s16 MapDatabase::getIntegerAsBlock(s64 i)
+    {
+        // Offset so that all negative coordinates become non-negative
+        i = i + 0x800800800;
+        // Which is now easier to decode using simple bit masks:
+        return { (s16)( (i        & 0xFFF) - 0x800),
+                 (s16)(((i >> 12) & 0xFFF) - 0x800),
+                 (s16)(((i >> 24) & 0xFFF) - 0x800) };
+    }
+    """
+    # Offset so that all negative coordinates become non-negative
+    i = i + 0x800800800
+    # Decode using simple bit masks
+    x = (i & 0xFFF) - 0x800
+    y = ((i >> 12) & 0xFFF) - 0x800
+    z = ((i >> 24) & 0xFFF) - 0x800
+    return (x, y, z)
+
+def main():
+    parser = argparse.ArgumentParser(description="Copy table 'blocks' (pos, mtime, data) from one SQLite DB to a new DB ")
+    parser.add_argument("source_db", help="Path to source SQLite database")
+    parser.add_argument("--table", default="blocks", help="Table name to copy (default: blocks)")
+    parser.add_argument("--overwrite", action="store_true", help="Drop destination table if it already exists")
+    args = parser.parse_args()
+
+    src_path = f'/Users/roman/Library/Application Support/minetest/worlds/{args.source_db}/map.sqlite'
+    dst_path = f'/Users/roman/Library/Application Support/minetest/worlds/{args.source_db}/map2.sqlite'
+    table = args.table
+
+    if not os.path.exists(src_path):
+        die(f"Source DB not found: {src_path}")
+
+    # Create/connect destination (creates file if not present)
+    try:
+        con = sqlite3.connect(dst_path)
+        con.isolation_level = None  # we'll manage transactions manually
+        cur = con.cursor()
+        cur.execute("PRAGMA foreign_keys=OFF;")
+        cur.execute("PRAGMA synchronous=NORMAL;")
+        cur.execute("PRAGMA journal_mode=WAL;")
+
+        # Attach source as 'src'
+        cur.execute("ATTACH DATABASE ? AS src;", (src_path,))
+
+        # Validate source table and columns
+        if not table_exists(cur, "src", table):
+            die(f"Source table '{table}' does not exist.")
+        ensure_columns(cur, "src", table, ("pos", "mtime", "data"))
+
+        # Handle destination table existence
+        if table_exists(cur, "main", table):
+            if args.overwrite:
+                cur.execute("BEGIN;")
+                try:
+                    cur.execute(f'DROP TABLE "{table}";')
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
+            else:
+                die(f"Destination already has table '{table}'. Use --overwrite to drop it.")
+
+        # Recreate table in destination using the source's CREATE TABLE SQL
+        create_sql = 'CREATE TABLE IF NOT EXISTS main.blocks (x INTEGER, y INTEGER, z INTEGER, data BLOB, mtime INTEGER, PRIMARY KEY (x, y, z));'
+        # Wrap in a transaction for speed and atomicity
+        cur.execute("BEGIN;")
+        try:
+            cur.execute(create_sql)  # creates main.table with same schema
+            
+            # Process rows in batches of 256
+            batch_size = 256
+            offset = 0
+            total_copied = 0
+            
+            while True:
+                # Fetch a batch of rows
+                cur.execute(f'SELECT pos, mtime, data FROM src."{table}" ORDER BY pos DESC LIMIT ? OFFSET ?;', (batch_size, offset))
+                batch = cur.fetchall()
+                
+                if not batch:
+                    break  # No more rows
+                
+                # Process each row in the batch
+                batch_data = []
+                for pos, mtime, data in batch:
+                    x, y, z = get_integer_as_block(pos)
+                    batch_data.append((x, y, z, data, mtime))
+                
+                # Insert the batch
+                cur.executemany(
+                    f'INSERT INTO main."{table}" (x, y, z, mtime, data) VALUES (?, ?, ?, ?, ?);',
+                    batch_data
+                )
+                
+                total_copied += len(batch)
+                offset += batch_size
+                
+                # Optional: print progress for large datasets
+                if total_copied % 10000 == 0:
+                    print(f"Processed {total_copied} rows...")
+            
+            con.commit()
+        except Exception as e:
+            con.rollback()
+            raise
+
+        # Report counts
+        cur.execute(f'SELECT COUNT(*) FROM src."{table}";')
+        src_count = cur.fetchone()[0]
+        cur.execute(f'SELECT COUNT(*) FROM main."{table}";')
+        dst_count = cur.fetchone()[0]
+        print(f"Copied {dst_count} rows into '{table}' (source had {src_count}). ")
+        print(f"Total rows processed: {total_copied}")
+        print(f"Destination DB: {dst_path}")
+
+    except Exception as e:
+        die(str(e))
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            con.close()
+        except Exception:
+            pass
+
+if __name__ == "__main__":
+    main()
