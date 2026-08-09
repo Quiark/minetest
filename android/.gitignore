@@ -6,6 +6,7 @@ app/release
 app/src/main/assets
 build
 local.properties
+signing/
 native/.*
 native/build
 native/deps

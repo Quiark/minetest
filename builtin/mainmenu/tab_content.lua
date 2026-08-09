@@ -239,13 +239,7 @@ local function handle_buttons(tabview, fields, tabname, tabdata)
 	end
 
 	if fields.btn_mod_mgr_delete_mod then
-		local mod = packages:get_list()[tabdata.selected_pkg]
-		local dlg_delmod = create_delete_content_dlg(mod)
-		dlg_delmod:set_parent(tabview)
-		tabview:hide()
-		dlg_delmod:show()
-		packages = nil
-		return true
+		return false
 	end
 
 	if fields.btn_mod_mgr_update then
