@@ -278,6 +278,7 @@ public class GameActivity extends SDLActivity {
 	}
 
 	public void startSync(String world) {
+		if (!MainActivity.SYNC_ENABLED) return;
 		if (replicateTask != null) replicateTask.stop();
 
 		replicateTask = new ReplicateTask(this);

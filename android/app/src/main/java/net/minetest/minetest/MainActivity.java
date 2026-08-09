@@ -20,18 +20,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 package net.minetest.minetest;
 
-import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -42,7 +38,6 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
 import androidx.appcompat.app.AppCompatActivity;
@@ -57,14 +52,12 @@ public class MainActivity extends AppCompatActivity {
 	private final static int versionCode = BuildConfig.VERSION_CODE;
 	private static final String SETTINGS = "MinetestSettings";
 	private static final String TAG_VERSION_CODE = "versionCode";
-	private static final int REQUEST_WRITE_STORAGE = 1;
 
 	public static final boolean SYNC_ENABLED = false;
 
 	private ProgressBar mProgressBar;
 	private TextView mTextView;
 	private SharedPreferences sharedPreferences;
-	private boolean waitingForStoragePermission = false;
 
 	private final BroadcastReceiver myReceiver = new BroadcastReceiver() {
 		@Override
@@ -115,58 +108,10 @@ public class MainActivity extends AppCompatActivity {
 		mTextView = findViewById(R.id.textView);
 		sharedPreferences = getSharedPreferences(SETTINGS, Context.MODE_PRIVATE);
 
-		if (hasStoragePermission())
-			checkAppVersion();
+		checkAppVersion();
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
 			createNotificationChannel();
-	}
-
-	@Override
-	protected void onResume() {
-		super.onResume();
-		if (waitingForStoragePermission) {
-			waitingForStoragePermission = false;
-			if (hasStoragePermission())
-				checkAppVersion();
-		}
-	}
-
-	private boolean hasStoragePermission() {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			if (Environment.isExternalStorageManager())
-				return true;
-			waitingForStoragePermission = true;
-			Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-			intent.setData(Uri.fromParts("package", getPackageName(), null));
-			try {
-				startActivity(intent);
-			} catch (ActivityNotFoundException e) {
-				Toast.makeText(this, R.string.no_app_all_files, Toast.LENGTH_LONG).show();
-				finish();
-			}
-			return false;
-		}
-
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-				checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-			requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_WRITE_STORAGE);
-			return false;
-		}
-		return true;
-	}
-
-	@Override
-	public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-		if (requestCode == REQUEST_WRITE_STORAGE) {
-			if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-				checkAppVersion();
-			} else {
-				Toast.makeText(this, R.string.no_storage_permission, Toast.LENGTH_LONG).show();
-				finish();
-			}
-		}
 	}
 
 	private void checkAppVersion() {
