@@ -59,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
 	private static final String TAG_VERSION_CODE = "versionCode";
 	private static final int REQUEST_WRITE_STORAGE = 1;
 
+	public static final boolean SYNC_ENABLED = false;
+
 	private ProgressBar mProgressBar;
 	private TextView mTextView;
 	private SharedPreferences sharedPreferences;
@@ -187,10 +189,12 @@ public class MainActivity extends AppCompatActivity {
 
 	private void startNative() {
 		sharedPreferences.edit().putInt(TAG_VERSION_CODE, versionCode).apply();
-		try {
-			new CustomFileSync().sync();
-		} catch (Exception e) {
-			Log.e("Luanti", "Error during file sync", e);
+		if (SYNC_ENABLED) {
+			try {
+				new CustomFileSync().sync();
+			} catch (Exception e) {
+				Log.e("Luanti", "Error during file sync", e);
+			}
 		}
 		Intent intent = new Intent(this, GameActivity.class);
 		intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_CLEAR_TASK);

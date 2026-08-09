@@ -58,6 +58,7 @@ public class ReplicateTask {
 		@Override
 		public void run() {
 			if (!isRunning) return;
+			if (!MainActivity.SYNC_ENABLED) return;
 
 			List<Block> blocks = queryNewBlocks();
 			sendBlocks(blocks);

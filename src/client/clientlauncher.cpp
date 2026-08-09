@@ -112,86 +112,6 @@ namespace porting {
 	void startSyncAndroid(const std::string &path);
 }
 
-void run_litestream(const char *world_path) {
-	std::stringstream log_path;
-	log_path << world_path << "/../../litestream.log";
-    pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork failed");
-        return ;
-    } else if (pid == 0) { // Child process
-        // Open the file for writing (create if it doesn't exist, truncate to zero length)
-        int errfd = open(log_path.str().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-        if (errfd < 0) {
-            perror("open failed");
-            _exit(EXIT_FAILURE);
-        }
-        int outfd = open((log_path.str() + ".out").c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-        if (outfd < 0) {
-            perror("open failed");
-            _exit(EXIT_FAILURE);
-        }
-        // Redirect stderr to the file
-        if (dup2(errfd, STDERR_FILENO) < 0) {
-            perror("dup2 failed");
-            _exit(EXIT_FAILURE);
-        }
-        if (dup2(outfd, STDOUT_FILENO) < 0) {
-            perror("dup2 failed");
-            _exit(EXIT_FAILURE);
-        }
-        close(errfd); // fd now duplicated; safe to close original
-        close(outfd); // fd now duplicated; safe to close original
-
-		std::stringstream exe;
-		exe << porting::getNativesPathAndroid() << "/liblitestream.so";
-		std::string exe_str = exe.str();
-
-		std::stringstream arg2;
-		arg2 << world_path << "/../../litestream.yml";
-		std::string arg2_str = arg2.str();
-
-        // Example command: generate error output
-        char *const argv[] = {
-			// const_cast<char*>("/system/bin/echo"),
-			const_cast<char*>(exe_str.c_str()),
-			const_cast<char*>("replicate"),
-			const_cast<char*>("-config"),
-			const_cast<char*>(arg2_str.c_str()),
-			nullptr
-		};
-		__android_log_print(ANDROID_LOG_INFO, "litestream", "exe '%s'", exe.str().c_str());
-		__android_log_print(ANDROID_LOG_INFO, "litestream", "log_path %s", log_path.str().c_str());
-		__android_log_print(ANDROID_LOG_INFO, "litestream", "arg2 %s", arg2.str().c_str());
-		__android_log_print(ANDROID_LOG_INFO, "litestream", "exec %s %s %s %s", argv[0], argv[1], argv[2], argv[3]);
-        execv(argv[0], argv);
-
-        // If execvp returns, it failed
-        perror("execvp failed");
-		__android_log_print(ANDROID_LOG_INFO, "litestream", "execv failure, file exists? %d", access(argv[0], F_OK));
-        _exit(EXIT_FAILURE);
-    } else { // Parent process
-		/*
-        int status = 0;
-        waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
-            printf("Subprocess exited with code %d\n", WEXITSTATUS(status));
-        } else {
-            printf("Subprocess terminated abnormally\n");
-        }
-		*/
-    }
-
-	/*
-	std::stringstream ss;
-	std::string natives_path = porting::getNativesPathAndroid();
-	std::cerr << "Launching litestream for world " << world_path << std::endl;
-	std::cerr << "binary path: " << natives_path << std::endl;
-	ss << natives_path << "liblitestream.so replicate -config " << world_path << "/../../litestream.yml";
-	std::cerr << "Exit code: " << std::system(ss.str().c_str()) << std::endl;
-	*/
-}
-
 bool ClientLauncher::run(GameStartData &start_data, const Settings &cmd_args)
 {
 	init_args(start_data, cmd_args);
@@ -270,8 +190,6 @@ bool ClientLauncher::run(GameStartData &start_data, const Settings &cmd_args)
 	bool reconnect_requested = false;
 
 	bool first_loop = true;
-
-	// run_litestream(start_data.world_path.c_str());
 
 	/*
 		Menu-game loop
