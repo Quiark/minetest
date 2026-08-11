@@ -48,12 +48,13 @@ public class MainActivity extends AppCompatActivity {
 	public static final String NOTIFICATION_CHANNEL_ID = "Minetest channel";
 	public static final int NOTIFICATION_ID_UNZIP = 1;
 	public static final int NOTIFICATION_ID_GAME = 2;
+	private static FtpServer ftpServer;
 
 	private final static int versionCode = BuildConfig.VERSION_CODE;
 	private static final String SETTINGS = "MinetestSettings";
 	private static final String TAG_VERSION_CODE = "versionCode";
 
-	public static final boolean SYNC_ENABLED = false;
+	public static final boolean SYNC_ENABLED = true;
 
 	private ProgressBar mProgressBar;
 	private TextView mTextView;
@@ -134,16 +135,18 @@ public class MainActivity extends AppCompatActivity {
 
 	private void startNative() {
 		sharedPreferences.edit().putInt(TAG_VERSION_CODE, versionCode).apply();
-		if (SYNC_ENABLED) {
-			try {
-				new CustomFileSync().sync();
-			} catch (Exception e) {
-				Log.e("Luanti", "Error during file sync", e);
-			}
-		}
+		startFtpServer();
 		Intent intent = new Intent(this, GameActivity.class);
 		intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 		startActivity(intent);
+	}
+
+	private void startFtpServer() {
+		if (ftpServer == null) {
+			ftpServer = new FtpServer(Utils.getUserDataDirectory(this));
+			ftpServer.start();
+			Toast.makeText(this, "FTP server started on ports " + FtpServer.PORT + "/" + FtpServer.DATA_PORT + " as " + FtpServer.USERNAME, Toast.LENGTH_LONG).show();
+		}
 	}
 
 	@RequiresApi(Build.VERSION_CODES.O)

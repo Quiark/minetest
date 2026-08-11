@@ -143,3 +143,4 @@ client/mod_storage.sqlite
 blocksave_worlds/kok
 .aider.input.history
 .aider.chat.history.md
+/blocksave_worlds

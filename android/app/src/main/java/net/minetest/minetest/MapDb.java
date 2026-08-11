@@ -11,7 +11,6 @@ import androidx.annotation.Nullable;
 public class MapDb extends SQLiteOpenHelper {
 	public final String DONE_MTIME = "SyncDoneMtime";
 	public final String DONE_POS = "SyncDonePos";
-	// New singles keys for new-format tracking
 	public final String DONE_X = "SyncDoneX";
 	public final String DONE_Y = "SyncDoneY";
 	public final String DONE_Z = "SyncDoneZ";
@@ -19,7 +18,12 @@ public class MapDb extends SQLiteOpenHelper {
 
 	public MapDb(@Nullable Context context, @Nullable String name) {
 		super(context, name, null, 3);
-		this.getWritableDatabase().close(); //upgrade
+		SQLiteDatabase db = this.getWritableDatabase();
+		try {
+			ensureMapSchema(db);
+		} finally {
+			db.close();
+		}
 		this.isNewFormat = this.isNewBlocksFormat();
 	}
 
@@ -31,45 +35,80 @@ public class MapDb extends SQLiteOpenHelper {
 		Log.i("MapDb", "Upgrading database from " + oldVersion + " to " + newVersion  );
 		if (oldVersion < 3) {
 			Log.i("MapDb", "adding mtime");
-			String wherePredicate = "x = new.x and y = new.y and z = new.z;";
-
-			db.execSQL("alter table blocks add mtime integer default 0;");
-			db.execSQL("create index blocks_mtime on blocks(mtime);");
-
-			db.execSQL("CREATE TRIGGER update_blocks_mtime_insert after insert on blocks for each row " +
-				"begin " +
-				"update blocks set mtime = strftime('%s', 'now') where " + wherePredicate +
-				"end;");
-
-				db.execSQL("CREATE TRIGGER update_blocks_mtime_update after update on blocks for each row " +
-				"begin " +
-				"update blocks set mtime = strftime('%s', 'now') where " + wherePredicate +
-				"end;");
+			ensureBlocksMtime(db);
 		}
-		if (oldVersion < 3) {
-			Log.i("MapDb", "Upgrading database adding singles table");
-			db.execSQL("create table singles(name, seq);");
-			ContentValues vals = new ContentValues();
-			vals.put("name", DONE_MTIME);
-			vals.put("seq", -1);
-			db.insert("singles", null, vals);
-			vals.put("name", DONE_POS);
-			vals.put("seq", -1);
-			db.insert("singles", null, vals);
-			vals.put("name", DONE_X);
-			vals.put("seq", -50000);
-			db.insert("singles", null, vals);
-			vals.put("name", DONE_Y);
-			vals.put("seq", -50000);
-			db.insert("singles", null, vals);
-			vals.put("name", DONE_Z);
-			vals.put("seq", -50000);
-			db.insert("singles", null, vals);
+		ensureSingles(db);
+	}
+
+	private void ensureMapSchema(SQLiteDatabase db) {
+		ensureBlocksMtime(db);
+		ensureSingles(db);
+	}
+
+	private void ensureBlocksMtime(SQLiteDatabase db) {
+		if (!tableExists(db, "blocks") || columnExists(db, "blocks", "mtime")) return;
+
+		Log.i("MapDb", "Ensuring blocks mtime column");
+		String wherePredicate = "x = new.x and y = new.y and z = new.z;";
+		db.execSQL("alter table blocks add mtime integer default 0;");
+		db.execSQL("create index if not exists blocks_mtime on blocks(mtime);");
+		db.execSQL("CREATE TRIGGER IF NOT EXISTS update_blocks_mtime_insert after insert on blocks for each row " +
+			"begin " +
+			"update blocks set mtime = strftime('%s', 'now') where " + wherePredicate +
+			"end;");
+		db.execSQL("CREATE TRIGGER IF NOT EXISTS update_blocks_mtime_update after update on blocks for each row " +
+			"begin " +
+			"update blocks set mtime = strftime('%s', 'now') where " + wherePredicate +
+			"end;");
+	}
+
+	private void ensureSingles(SQLiteDatabase db) {
+		Log.i("MapDb", "Ensuring singles table");
+		db.execSQL("create table if not exists singles(name primary key, seq);");
+		insertSingleDefault(db, DONE_MTIME, -1);
+		insertSingleDefault(db, DONE_POS, -1);
+		insertSingleDefault(db, DONE_X, -50000);
+		insertSingleDefault(db, DONE_Y, -50000);
+		insertSingleDefault(db, DONE_Z, -50000);
+	}
+
+	private boolean tableExists(SQLiteDatabase db, String tableName) {
+		Cursor c = db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", new String[]{tableName});
+		try {
+			return c.moveToFirst();
+		} finally {
+			c.close();
 		}
 	}
 
+	private boolean columnExists(SQLiteDatabase db, String tableName, String columnName) {
+		Cursor c = db.rawQuery("PRAGMA table_info(" + tableName + ")", null);
+		try {
+			final int nameIdx = c.getColumnIndex("name");
+			while (c.moveToNext()) {
+				String name = nameIdx >= 0 ? c.getString(nameIdx) : c.getString(1);
+				if (columnName.equalsIgnoreCase(name)) return true;
+			}
+			return false;
+		} finally {
+			c.close();
+		}
+	}
 
-	// Helper to upsert a value into 'singles' by name
+	private void insertSingleDefault(SQLiteDatabase db, String name, long value) {
+		Cursor c = db.query("singles", new String[]{"name"}, "name = ?", new String[]{name}, null, null, null);
+		try {
+			if (c.moveToFirst()) return;
+		} finally {
+			c.close();
+		}
+
+		ContentValues values = new ContentValues();
+		values.put("name", name);
+		values.put("seq", value);
+		db.insert("singles", null, values);
+	}
+
 	private void upsertSingle(SQLiteDatabase db, String name, long value) {
 		ContentValues values = new ContentValues();
 		values.put("seq", value);

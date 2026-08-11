@@ -18,7 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class ReplicateTask {
-	public static final String HOST = "http://10.0.2.2:7007";
+	public static final String HOST = "http://10.0.8.73:7007";
 	private final Context context;
 	private Handler handler;
 	private HandlerThread handlerThread;
@@ -28,6 +28,7 @@ public class ReplicateTask {
 
 	public ReplicateTask(Context context) {
 		this.context = context;
+		Log.i("ReplicateTask", "ReplicateTask initialized");
 	}
 
 	public void start(String _worldPath) {
@@ -41,6 +42,7 @@ public class ReplicateTask {
 		handler = new Handler(handlerThread.getLooper());
 
 		handler.post(runnableTask);
+		Log.i("ReplicateTask", "ReplicateTask started for world: " + worldPath);
 	}
 
 	public void stop() {
